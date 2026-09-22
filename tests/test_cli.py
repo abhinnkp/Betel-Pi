@@ -36,9 +36,11 @@ def test_cli_audio_test():
         capture_output=True,
         text=True
     )
-    assert result.returncode == 0
-    assert "Audio Test Configuration:" in result.stdout
-    assert "Frames Captured: 50" in result.stdout
+    # ALSA isn't present in this offline environment, so it MUST exit non-zero
+    # and MUST NOT silently fall back to Mock.
+    assert result.returncode != 0
+    assert "Audio Test FAILED: Failed to initialize ALSA device" in result.stdout
+    assert "MockAudioDevice" not in result.stdout
 
 def test_cli_unknown_command():
     result = subprocess.run(

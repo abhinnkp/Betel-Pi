@@ -58,10 +58,8 @@ def run_audio_test(config_path: str, frames_to_capture: int = 50):
         device = ALSAAudioDevice(cfg)
         device.open()
     except Exception as e:
-        print(f"\n[!] Failed to initialize ALSA device (using Mock instead for dev/offline testing): {e}")
-        from app.audio.mock_device import MockAudioDevice
-        device = MockAudioDevice(cfg)
-        device.open()
+        print(f"\n[!] Audio Test FAILED: Failed to initialize ALSA device: {e}")
+        sys.exit(1)
 
     try:
         print("\nDevice opened successfully. Capturing...")

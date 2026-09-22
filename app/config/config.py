@@ -41,11 +41,11 @@ class Config:
         if type(audio.get("sample_width")) is not int or isinstance(audio.get("sample_width"), bool) or audio.get("sample_width") != 2:
             raise ConfigError("audio.sample_width must be an integer exactly 2 (16-bit).")
 
-        if type(audio.get("format")) is not str or not audio.get("format"):
-            raise ConfigError("audio.format must be a valid configured string.")
+        if audio.get("format") != "S16_LE":
+            raise ConfigError("audio.format must be strictly 'S16_LE'.")
 
-        frame_dur = audio.get("frame_duration_ms")
-        if type(frame_dur) is not int or isinstance(frame_dur, bool) or frame_dur not in (10, 20, 30):
+        audio_frame_dur = audio.get("frame_duration_ms")
+        if type(audio_frame_dur) is not int or isinstance(audio_frame_dur, bool) or audio_frame_dur not in (10, 20, 30):
             raise ConfigError("audio.frame_duration_ms must be an integer 10, 20, or 30.")
 
         # Recording Section
@@ -71,9 +71,12 @@ class Config:
         if type(mode) is not int or isinstance(mode, bool) or mode not in (0, 1, 2, 3):
             raise ConfigError("vad.mode must be an integer 0, 1, 2, or 3.")
 
-        frame_dur = vad.get("frame_duration_ms")
-        if type(frame_dur) is not int or isinstance(frame_dur, bool) or frame_dur not in (10, 20, 30):
+        vad_frame_dur = vad.get("frame_duration_ms")
+        if type(vad_frame_dur) is not int or isinstance(vad_frame_dur, bool) or vad_frame_dur not in (10, 20, 30):
             raise ConfigError("vad.frame_duration_ms must be 10, 20, or 30.")
+
+        if audio_frame_dur != vad_frame_dur:
+            raise ConfigError("audio.frame_duration_ms and vad.frame_duration_ms must be identical.")
 
         speech_start = vad.get("speech_start_frames")
         if type(speech_start) is not int or isinstance(speech_start, bool) or speech_start <= 0:

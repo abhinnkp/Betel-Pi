@@ -77,6 +77,19 @@ def test_invalid_audio_sample_rate():
     with pytest.raises(ConfigError, match="audio.sample_rate must be an integer \\(8000"):
         Config(data)
 
+def test_invalid_audio_format():
+    data = get_base_data()
+    data["audio"]["format"] = "S32_LE"
+    with pytest.raises(ConfigError, match="strictly 'S16_LE'"):
+        Config(data)
+
+def test_mismatched_frame_durations():
+    data = get_base_data()
+    data["audio"]["frame_duration_ms"] = 10
+    data["vad"]["frame_duration_ms"] = 20
+    with pytest.raises(ConfigError, match="must be identical"):
+        Config(data)
+
 def test_invalid_durations():
     data = get_base_data()
     data["recording"]["min_duration_sec"] = -1

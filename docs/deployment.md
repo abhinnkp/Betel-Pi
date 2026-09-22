@@ -9,7 +9,7 @@ Betel Pi uses a "Master Image" deployment strategy due to the resource constrain
    - Install the ALSA dependency (`pyalsaaudio`).
    - Install the VAD dependency (`webrtcvad-wheels==2.0.14`).
      - **AArch64 (64-bit):** Pre-built CPython 3.13 wheel available.
-     - **ARMv7/armhf (32-bit):** No published CPython Linux ARMv7 wheel exists; source compilation is required. *ARMv7 source-build path identified; physical Pi verification remains a deployment prerequisite.*
+     - **ARMv7/armhf (32-bit):** No published CPython Linux ARMv7 wheel exists; source compilation is required. *ARMv7 source-build path identified; physical Python 3.13 + pyalsaaudio verification remains pending on the target Raspberry Pi hardware.*
    - Setup the `betelpi` user and `systemd` service
    - Copy `config/config.yaml` to the production location `/etc/betel-pi/config.yaml`
 3. **Configure OS Integrations:**
