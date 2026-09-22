@@ -6,6 +6,7 @@ Betel Pi uses a "Master Image" deployment strategy due to the resource constrain
 1. **Prepare Master Pi:** Install Debian Trixie on a Raspberry Pi 3A+.
 2. **Run Installer:** Execute `sudo ./scripts/install.sh`. This script will:
    - Install OS level requirements (gcc, g++, python3-dev, libasound2-dev, etc.)
+   - Install the ALSA dependency (`pyalsaaudio`).
    - Install the VAD dependency (`webrtcvad-wheels==2.0.14`).
      - **AArch64 (64-bit):** Pre-built CPython 3.13 wheel available.
      - **ARMv7/armhf (32-bit):** No published CPython Linux ARMv7 wheel exists; source compilation is required. *ARMv7 source-build path identified; physical Pi verification remains a deployment prerequisite.*

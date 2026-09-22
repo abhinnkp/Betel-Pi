@@ -44,6 +44,10 @@ class Config:
         if type(audio.get("format")) is not str or not audio.get("format"):
             raise ConfigError("audio.format must be a valid configured string.")
 
+        frame_dur = audio.get("frame_duration_ms")
+        if type(frame_dur) is not int or isinstance(frame_dur, bool) or frame_dur not in (10, 20, 30):
+            raise ConfigError("audio.frame_duration_ms must be an integer 10, 20, or 30.")
+
         # Recording Section
         recording = self._config.get("recording")
         if not isinstance(recording, dict): raise ConfigError("Recording section missing or invalid type.")
@@ -137,3 +141,13 @@ class Config:
     @property
     def raw(self) -> Dict[str, Any]:
         return self._config
+
+    @property
+    def frames_per_buffer(self) -> int:
+        audio = self._config["audio"]
+        return int(audio["sample_rate"] * (audio["frame_duration_ms"] / 1000.0))
+
+    @property
+    def expected_frame_bytes(self) -> int:
+        audio = self._config["audio"]
+        return self.frames_per_buffer * audio["channels"] * audio["sample_width"]

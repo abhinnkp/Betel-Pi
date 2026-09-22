@@ -9,7 +9,8 @@ def get_base_data():
             "sample_rate": 16000,
             "channels": 1,
             "sample_width": 2,
-            "format": "S16_LE"
+            "format": "S16_LE",
+            "frame_duration_ms": 20
         },
         "recording": {
             "output_path": "/mnt/recordings",

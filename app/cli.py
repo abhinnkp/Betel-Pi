@@ -2,6 +2,10 @@ import argparse
 import sys
 import os
 from importlib.metadata import version
+import time
+from app.config.config import Config
+from app.audio.device import enumerate_devices, AudioOverrunError, AudioDeviceError
+from app.audio.stats import calculate_rms, calculate_peak
 
 def get_config_path(args_path: str = None) -> str:
     """Determine the configuration path prioritizing explicit arg, then production path, then dev path resolved relative to the package."""
@@ -23,6 +27,82 @@ def print_version():
     except Exception:
         ver = "0.1.0 (dev)"
     print(f"Betel Pi v{ver}")
+
+def print_audio_devices():
+    print("ALSA Capture Devices")
+    print("====================")
+    devices = enumerate_devices()
+    if not devices:
+        print("No capture devices found or ALSA unavailable.")
+        return
+
+    for d in devices:
+        print(f"- ID: {d['id']} | Name: {d['name']} | Capture Capable: {d['capture_capable']}")
+
+def run_audio_test(config_path: str, frames_to_capture: int = 50):
+    print(f"Loading configuration from {config_path}...")
+    cfg = Config.from_file(config_path)
+    audio_cfg = cfg.raw["audio"]
+
+    print("\nAudio Test Configuration:")
+    print(f"Device:        {audio_cfg['device']}")
+    print(f"Sample Rate:   {audio_cfg['sample_rate']} Hz")
+    print(f"Channels:      {audio_cfg['channels']}")
+    print(f"Sample Width:  {audio_cfg['sample_width']} bytes")
+    print(f"Frame Dur:     {audio_cfg['frame_duration_ms']} ms")
+    print(f"Expected Size: {cfg.expected_frame_bytes} bytes/frame")
+    print("----------------------------------------")
+
+    try:
+        from app.audio.alsa_device import ALSAAudioDevice
+        device = ALSAAudioDevice(cfg)
+        device.open()
+    except Exception as e:
+        print(f"\n[!] Failed to initialize ALSA device (using Mock instead for dev/offline testing): {e}")
+        from app.audio.mock_device import MockAudioDevice
+        device = MockAudioDevice(cfg)
+        device.open()
+
+    try:
+        print("\nDevice opened successfully. Capturing...")
+
+        captured_frames = 0
+        xrun_count = 0
+        total_rms = 0.0
+        max_peak = 0
+
+        start_time = time.time()
+
+        while captured_frames < frames_to_capture:
+            try:
+                frame = device.read_frame()
+                captured_frames += 1
+
+                rms = calculate_rms(frame, audio_cfg['sample_width'])
+                peak = calculate_peak(frame, audio_cfg['sample_width'])
+
+                total_rms += rms
+                if peak > max_peak:
+                    max_peak = peak
+
+            except AudioOverrunError:
+                xrun_count += 1
+            except AudioDeviceError as e:
+                print(f"Capture error: {e}")
+                break
+
+        duration = time.time() - start_time
+
+        print("\nTest Complete!")
+        print(f"Frames Captured: {captured_frames}")
+        print(f"Duration:        {duration:.2f} sec")
+        print(f"XRUNs:           {xrun_count}")
+        if captured_frames > 0:
+            print(f"Avg RMS Level:   {total_rms / captured_frames:.2f}")
+            print(f"Peak Level:      {max_peak}")
+
+    finally:
+        device.close()
 
 def print_status(config_path: str):
     print("Betel Pi Status")
@@ -58,9 +138,9 @@ def main():
     elif args.command == "status":
         print_status(config_path)
     elif args.command == "audio-devices":
-        print("Not implemented yet.")
+        print_audio_devices()
     elif args.command == "audio-test":
-        print("Not implemented yet.")
+        run_audio_test(config_path)
     elif args.command == "vad-test":
         print("Not implemented yet.")
     elif args.command == "run":

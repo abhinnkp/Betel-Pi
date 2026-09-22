@@ -3,8 +3,8 @@
 Betel Pi is a Raspberry Pi-based audio-only recording device designed for high reliability, unattended operation, and minimal CPU utilization.
 
 ## Key Features
-- **Audio Only:** Captures USB microphone audio using ALSA. (No camera or video components).
-- **VAD (Voice Activity Detection):** Utilizes `webrtcvad` for highly efficient speech detection on ARM processors.
+- **Audio Only:** Captures USB microphone audio using ALSA blocking IO via `pyalsaaudio`. (No camera or video components).
+- **VAD (Voice Activity Detection):** Utilizes `webrtcvad-wheels` for highly efficient speech detection on ARM processors.
 - **Configurable Lifecycle:** Pre-roll, post-roll, silence detection, and max duration are all configurable in `config.yaml`.
 - **SMB Recording:** Writes directly to an intranet SMB share mounted via Linux CIFS.
 - **Offline Capable:** Does not require internet connectivity; relies on local OS NTP.
