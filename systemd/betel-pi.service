@@ -1,0 +1,24 @@
+[Unit]
+Description=Betel Pi Audio Recording Service
+After=network.target sound.target local-fs.target
+Requires=local-fs.target
+
+[Service]
+Type=simple
+User=betelpi
+Group=betelpi
+SupplementaryGroups=audio
+
+# The application runs as a non-root user.
+# SMB mounting and NTP sync are handled outside this service by the OS.
+ExecStart=/opt/betel-pi/venv/bin/betel-pi run
+WorkingDirectory=/opt/betel-pi
+Restart=always
+RestartSec=5
+
+# Send logs to syslog / journald
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

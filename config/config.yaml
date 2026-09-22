@@ -1,0 +1,38 @@
+audio:
+  device: "default"
+  sample_rate: 16000
+  channels: 1
+  sample_width: 2
+  format: "S16_LE"
+
+recording:
+  output_path: "/mnt/recordings"
+  max_duration_sec: 600
+  min_duration_sec: 1
+
+vad:
+  enabled: true
+  mode: 2
+  frame_duration_ms: 20
+  speech_start_frames: 3
+  silence_frames: 25
+  pre_roll_ms: 500
+  post_roll_ms: 500
+
+storage:
+  minimum_free_mb: 500
+  maximum_usage_percent: 95
+  smb:
+    enabled: true
+    server: "10.x.x.x"
+    share: "RTLS"
+    mount_path: "/mnt/recordings"
+
+time:
+  ntp:
+    enabled: true
+    server: "10.5.1.103"
+
+logging:
+  level: "INFO"
+  file: "/var/log/betel-pi/betel-pi.log"
