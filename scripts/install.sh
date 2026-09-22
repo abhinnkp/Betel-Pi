@@ -4,6 +4,16 @@ set -e
 echo "======================================"
 echo " Betel Pi Installer (Milestone 1 Stub)"
 echo "======================================"
+echo " Note: This is a structural skeleton for Milestone 1."
+echo " The production installer in later milestones will:"
+echo " - verify Debian Trixie, arch, and Python version"
+echo " - install OS dependencies and create venv"
+echo " - install tested dependencies and Betel Pi"
+echo " - create betelpi user and configure audio permissions"
+echo " - install config.yaml and systemd service"
+echo " - configure OS NTP and prepare SMB/fstab deployment"
+echo " - preserve existing configuration and never delete recordings"
+echo "======================================"
 
 # Ensure script is run as root
 if [ "$(id -u)" != "0" ]; then

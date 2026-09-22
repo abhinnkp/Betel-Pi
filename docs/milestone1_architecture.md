@@ -31,7 +31,15 @@ The architecture strictly separates the **Python Application Responsibility** fr
 - The configuration acts as the single source of truth for all modules.
 
 ### ALSA / Audio Capture
-- **USB Microphone Abstraction:** `app.audio.device` abstracts ALSA configuration and discovery.
+- **USB Microphone Abstraction:** `app.audio.device` establishes a strict hierarchy for audio capture:
+  ```
+  AudioDevice (Interface)
+      |
+      +-- ALSAAudioDevice (Production)
+      |
+      +-- MockAudioDevice (Testing)
+  ```
+- The production implementation **must** use ALSA for USB microphones. Frameworks like PortAudio, sounddevice, or PyAudio are explicitly prohibited.
 - Capture logic will prefer blocking ALSA reads to avoid busy-looping and CPU-intensive sleep/poll mechanisms.
 
 ### VAD Abstraction

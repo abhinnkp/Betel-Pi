@@ -8,6 +8,7 @@ Betel Pi uses a "Master Image" deployment strategy due to the resource constrain
    - Install OS level requirements (gcc, g++, python3-dev, libasound2-dev, etc.)
    - Compile `webrtcvad` from PyPI
    - Setup the `betelpi` user and `systemd` service
+   - Copy `config/config.yaml` to the production location `/etc/betel-pi/config.yaml`
 3. **Configure OS Integrations:**
    - Configure `/etc/fstab` for the CIFS/SMB share (`/mnt/recordings`).
    - Configure the OS NTP service (`systemd-timesyncd` or `chrony`) pointing to the local intranet server.

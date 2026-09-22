@@ -12,7 +12,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "PyYAML>=6.0",
-    "webrtcvad>=2.0.10",
+    "webrtcvad-wheels>=2.0.14",
 ]
 
 [project.scripts]
