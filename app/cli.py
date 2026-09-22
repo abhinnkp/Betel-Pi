@@ -4,7 +4,7 @@ import os
 from importlib.metadata import version
 
 def get_config_path(args_path: str = None) -> str:
-    """Determine the configuration path prioritizing explicit arg, then production path, then dev path."""
+    """Determine the configuration path prioritizing explicit arg, then production path, then dev path resolved relative to the package."""
     if args_path:
         return args_path
 
@@ -12,7 +12,9 @@ def get_config_path(args_path: str = None) -> str:
     if os.path.exists(prod_path):
         return prod_path
 
-    dev_path = "config/config.yaml"
+    # Resolve the dev path relative to this file, avoiding reliance on Current Working Directory (CWD).
+    package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dev_path = os.path.join(package_dir, "config", "config.yaml")
     return dev_path
 
 def print_version():

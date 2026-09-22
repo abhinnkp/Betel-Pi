@@ -32,52 +32,68 @@ class Config:
         if not isinstance(audio.get("device"), str): raise ConfigError("audio.device must be a string.")
 
         sample_rate = audio.get("sample_rate")
-        if not isinstance(sample_rate, int) or sample_rate not in (8000, 16000, 32000, 48000):
+        if type(sample_rate) is not int or isinstance(sample_rate, bool) or sample_rate not in (8000, 16000, 32000, 48000):
             raise ConfigError("audio.sample_rate must be an integer (8000, 16000, 32000, or 48000).")
 
-        if audio.get("channels") != 1: raise ConfigError("audio.channels must be an integer exactly 1 (mono).")
-        if audio.get("sample_width") != 2: raise ConfigError("audio.sample_width must be an integer exactly 2 (16-bit).")
-        if not isinstance(audio.get("format"), str) or not audio.get("format"): raise ConfigError("audio.format must be a valid configured string.")
+        if type(audio.get("channels")) is not int or isinstance(audio.get("channels"), bool) or audio.get("channels") != 1:
+            raise ConfigError("audio.channels must be an integer exactly 1 (mono).")
+
+        if type(audio.get("sample_width")) is not int or isinstance(audio.get("sample_width"), bool) or audio.get("sample_width") != 2:
+            raise ConfigError("audio.sample_width must be an integer exactly 2 (16-bit).")
+
+        if type(audio.get("format")) is not str or not audio.get("format"):
+            raise ConfigError("audio.format must be a valid configured string.")
 
         # Recording Section
         recording = self._config.get("recording")
         if not isinstance(recording, dict): raise ConfigError("Recording section missing or invalid type.")
 
         output_path = recording.get("output_path")
-        if not isinstance(output_path, str) or not output_path.strip():
+        if type(output_path) is not str or not output_path.strip():
             raise ConfigError("recording.output_path must be a non-empty string.")
 
         max_dur = recording.get("max_duration_sec")
         min_dur = recording.get("min_duration_sec")
-        if not isinstance(max_dur, (int, float)) or max_dur <= 0: raise ConfigError("recording.max_duration_sec must be numeric > 0.")
-        if not isinstance(min_dur, (int, float)) or min_dur <= 0: raise ConfigError("recording.min_duration_sec must be numeric > 0.")
+        if isinstance(max_dur, bool) or not isinstance(max_dur, (int, float)) or max_dur <= 0: raise ConfigError("recording.max_duration_sec must be numeric > 0.")
+        if isinstance(min_dur, bool) or not isinstance(min_dur, (int, float)) or min_dur <= 0: raise ConfigError("recording.min_duration_sec must be numeric > 0.")
         if min_dur > max_dur: raise ConfigError("recording.min_duration_sec must not exceed max_duration_sec.")
 
         # VAD Section
         vad = self._config.get("vad")
         if not isinstance(vad, dict): raise ConfigError("VAD section missing or invalid type.")
-        if not isinstance(vad.get("enabled"), bool): raise ConfigError("vad.enabled must be a boolean.")
-        if vad.get("mode") not in (0, 1, 2, 3): raise ConfigError("vad.mode must be an integer 0, 1, 2, or 3.")
-        if vad.get("frame_duration_ms") not in (10, 20, 30): raise ConfigError("vad.frame_duration_ms must be 10, 20, or 30.")
+        if type(vad.get("enabled")) is not bool: raise ConfigError("vad.enabled must be a boolean.")
+
+        mode = vad.get("mode")
+        if type(mode) is not int or isinstance(mode, bool) or mode not in (0, 1, 2, 3):
+            raise ConfigError("vad.mode must be an integer 0, 1, 2, or 3.")
+
+        frame_dur = vad.get("frame_duration_ms")
+        if type(frame_dur) is not int or isinstance(frame_dur, bool) or frame_dur not in (10, 20, 30):
+            raise ConfigError("vad.frame_duration_ms must be 10, 20, or 30.")
 
         speech_start = vad.get("speech_start_frames")
-        if not isinstance(speech_start, int) or speech_start <= 0: raise ConfigError("vad.speech_start_frames must be a positive integer.")
+        if type(speech_start) is not int or isinstance(speech_start, bool) or speech_start <= 0:
+            raise ConfigError("vad.speech_start_frames must be a positive integer.")
+
         silence_frames = vad.get("silence_frames")
-        if not isinstance(silence_frames, int) or silence_frames <= 0: raise ConfigError("vad.silence_frames must be a positive integer.")
+        if type(silence_frames) is not int or isinstance(silence_frames, bool) or silence_frames <= 0:
+            raise ConfigError("vad.silence_frames must be a positive integer.")
 
         pre_roll = vad.get("pre_roll_ms")
-        if not isinstance(pre_roll, (int, float)) or pre_roll < 0: raise ConfigError("vad.pre_roll_ms must be non-negative.")
+        if isinstance(pre_roll, bool) or not isinstance(pre_roll, (int, float)) or pre_roll < 0: raise ConfigError("vad.pre_roll_ms must be non-negative.")
+
         post_roll = vad.get("post_roll_ms")
-        if not isinstance(post_roll, (int, float)) or post_roll < 0: raise ConfigError("vad.post_roll_ms must be non-negative.")
+        if isinstance(post_roll, bool) or not isinstance(post_roll, (int, float)) or post_roll < 0: raise ConfigError("vad.post_roll_ms must be non-negative.")
 
         # Storage Section
         storage = self._config.get("storage")
         if not isinstance(storage, dict): raise ConfigError("Storage section missing or invalid type.")
         min_free = storage.get("minimum_free_mb")
-        if not isinstance(min_free, int) or min_free <= 0: raise ConfigError("storage.minimum_free_mb must be a positive integer.")
+        if type(min_free) is not int or isinstance(min_free, bool) or min_free <= 0:
+            raise ConfigError("storage.minimum_free_mb must be a positive integer.")
 
         max_usage = storage.get("maximum_usage_percent")
-        if not isinstance(max_usage, (int, float)) or not (0 < max_usage <= 100):
+        if isinstance(max_usage, bool) or not isinstance(max_usage, (int, float)) or not (0 < max_usage <= 100):
             raise ConfigError("storage.maximum_usage_percent must be between 1 and 100.")
 
         smb = storage.get("smb", {})
@@ -101,8 +117,10 @@ class Config:
 
         if ntp.get("enabled"):
             server = ntp.get("server")
+            # We strictly validate syntactic non-empty string presence here. Network reachability
+            # is a host OS deployment/runtime responsibility, so no DNS checks occur here.
             if not isinstance(server, str) or not server.strip():
-                raise ConfigError("time.ntp.server must be a valid hostname/IP when enabled.")
+                raise ConfigError("time.ntp.server must be a non-empty hostname/IP string when enabled.")
 
         # Logging Section
         logging = self._config.get("logging")

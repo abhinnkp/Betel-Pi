@@ -44,7 +44,7 @@ The architecture strictly separates the **Python Application Responsibility** fr
 
 ### VAD Abstraction
 - Defined in `app.vad.base` as an interface `VADProcessor`.
-- A concrete implementation `WebRTCVADProcessor` wraps `webrtcvad`. This prevents the core application from tightly coupling to the specific VAD library, allowing mock implementations for testing.
+- Planned concrete implementation: `WebRTCVADProcessor` wrapping `webrtcvad-wheels`. This prevents the core application from tightly coupling to the specific VAD library, allowing mock implementations for testing.
 
 ### Recording Controller
 - The core orchestrator in `app.recording.controller`.

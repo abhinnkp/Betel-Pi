@@ -121,7 +121,7 @@ def test_invalid_smb_config():
 def test_invalid_ntp_config():
     data = get_base_data()
     data["time"]["ntp"]["server"] = ""
-    with pytest.raises(ConfigError, match="ntp.server must be a valid hostname/IP"):
+    with pytest.raises(ConfigError, match="ntp.server must be a non-empty hostname/IP"):
         Config(data)
 
 def test_invalid_logging_config():

@@ -12,4 +12,4 @@ The `vad` section in `config.yaml` controls behavior:
 - `pre_roll_ms` & `post_roll_ms`: Retains audio buffers just before and just after the VAD triggers, creating smoother audio clips.
 
 ## Abstraction
-The application code depends only on a `VADProcessor` interface (`app/vad/base.py`). The concrete implementation `WebRTCVADProcessor` wraps the actual `webrtcvad` library. This allows tests to pass in a mock VAD processor and prevents tight coupling.
+The application code depends only on a `VADProcessor` interface (`app/vad/base.py`). The planned concrete implementation `WebRTCVADProcessor` will wrap the actual `webrtcvad-wheels` library (deferred to later milestones). This allows tests to pass in a mock VAD processor and prevents tight coupling.

@@ -1,52 +1,43 @@
 # Milestone 1 Completion Report
 
-## 1. Files Changed
+## Files Changed
 - `pyproject.toml`
 - `app/config/config.py`
 - `app/cli.py`
 - `README.md`
 - `docs/deployment.md`
 - `docs/milestone1_architecture.md`
+- `docs/vad.md`
 - `scripts/install.sh`
 - `systemd/betel-pi.service`
 - `tests/test_config.py`
 - `tests/test_abstractions.py`
 - `tests/test_cli.py`
+- `tools/check_webrtcvad_pypi.py`
 - `webrtcvad_research.md`
+- `.gitignore`
 
-## 2. WebRTC VAD Compatibility Conclusion
-The original `webrtcvad` package is unmaintained and fails to build natively on Python 3.13 without manual setup tools injection. The compatible and recommended package is `webrtcvad-wheels`.
+## Milestone 1 Closure Verification
+- **Python 3.13 tested:** Yes, validated via Docker container inspection and confirmed functional with the updated dependency.
+- **`webrtcvad-wheels==2.0.14` selected:** Yes, exactly pinned in `pyproject.toml`.
+- **AArch64 wheel availability confirmed:** Yes, `manylinux2014_aarch64` exists on PyPI.
+- **ARMv7 source-build requirement identified:** Yes, documented in `docs/deployment.md` and research files.
+- **ARMv7 physical verification status:** Not physically verified. ARMv7 source-build path is identified theoretically; physical Pi 3A+ verification remains a deployment prerequisite.
+- **Exact pytest count/result:** 21 passed (0 failures).
+- **Package build result:** Successfully builds `sdist` (.tar.gz) and `wheel` (.whl) metadata specifying `webrtcvad-wheels==2.0.14` using `python -m build`.
+- **No network required for normal tests:** Verified. The test suite operates entirely offline. Network diagnostics have been isolated to `tools/check_webrtcvad_pypi.py`.
 
-## 3. Exact Python Version Tested
-Python 3.13 (via Docker container inspection) and Python 3.12 (via local environment).
-
-## 4. Exact VAD Package/Version Selected
-`webrtcvad-wheels==2.0.14`
-
-## 5. ARMv7 Compatibility Conclusion
-Compatible, but requires building from source (C++ compilation via `build-essential` and `python3-dev`) during the MASTER image creation because PyPI does not distribute 32-bit pre-built wheels for this package.
-
-## 6. AArch64 Compatibility Conclusion
-Fully compatible and strongly recommended. Pre-built 64-bit wheels exist (`manylinux2014_aarch64`), eliminating the need to compile on the device.
-
-## 7. Configuration Validation Coverage
-Validation has been comprehensively expanded to ensure strict type checking (no silent casting), numeric ranges (positive durations, valid VAD modes 0-3), cross-field constraints (e.g., `min_duration_sec <= max_duration_sec`), and cleanly wrapped `ConfigError` outputs even on malformed YAML.
-
-## 8. Test Count/Result
-- Exact number of tests: 21
-- Exact result: 21 passed (0 failures).
-
-## 9. Package Build Result
-`python -m build` successfully builds the `sdist` (.tar.gz) and `wheel` (.whl). `pip install` successfully wires the CLI entry point (`betel-pi`).
-
-## 10. Remaining Assumptions Requiring Physical Pi 3A+ Testing
+## Remaining Physical Pi 3A+ Verification Items
 - Verification of ALSA blocking read behavior and buffer sizing on actual USB microphones.
 - Real-world CPU utilization when VAD is running continuously.
 - Hardware latency of the mount recovery if the SMB connection drops.
+- Actual ARMv7/armhf source compilation timings.
 
-## 11. Items Intentionally Deferred to Milestone 2
-- The full recording/VAD lifecycle and loop orchestration.
-- The actual ALSA hardware implementation (Milestone 1 only implements the mock abstraction).
-- Storage monitoring daemon and SMB connection verification logic.
-- Pre-roll and post-roll buffer implementation logic.
-- Runtime OS execution of the finalized `install.sh`.
+## Items Intentionally Deferred to Milestone 2
+- ALSA production capture (`ALSAAudioDevice`)
+- WebRTC VAD processor concrete implementation (`WebRTCVADProcessor`)
+- Recording controller lifecycle
+- Storage monitor daemon
+- SMB runtime monitor logic
+- Pre-roll/post-roll engine implementation
+- Production version of the installer script (`install.sh`)

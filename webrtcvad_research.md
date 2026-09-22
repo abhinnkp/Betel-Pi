@@ -23,4 +23,4 @@ For Debian 13 (Trixie), the recommended package is **`webrtcvad-wheels==2.0.14`*
 
 **Deployment Strategy:** Because the Raspberry Pi 3A+ supports 64-bit kernels (AArch64), it is highly recommended to install the 64-bit version of Debian Trixie to take advantage of the pre-built `webrtcvad-wheels`. If a 32-bit OS must be used, the `MASTER` Pi image preparation script will need to compile the C extension from source, which takes a few minutes but works.
 
-The project dependency has been updated to `webrtcvad-wheels>=2.0.14` and the Python version requirement has been verified for `>=3.11`, fully supporting Python 3.13.
+The project dependency has been updated to `webrtcvad-wheels==2.0.14` and the Python version requirement has been verified for `>=3.11`, fully supporting Python 3.13.
