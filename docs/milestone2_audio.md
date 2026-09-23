@@ -11,7 +11,7 @@ Betel Pi Milestone 2 implements the production hardware abstraction layer for au
 The `AudioDevice` interface enforces deterministic PCM frame reads based on `config.yaml`.
 
 - `ALSAAudioDevice`: Operates in ALSA's `PCM_NORMAL` blocking mode. This puts the thread to sleep efficiently while the USB microphone fills the buffer, preventing busy-looping and saving CPU cycles on the Pi 3A+.
-- `MockAudioDevice`: Included for completely offline development and CI testing.
+- `MockAudioDevice`: MockAudioDevice is provided for isolated unit testing and offline development. Production audio-test always uses ALSAAudioDevice and fails if the configured ALSA capture device cannot be initialized.
 
 ## ALSA Configuration
 The application reads exactly configured fixed size bytes based on:

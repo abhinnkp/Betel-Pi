@@ -25,7 +25,7 @@ The implementation utilizes `pyalsaaudio==0.11.0`.
 - **ARMv7 / AArch64:** ARMv7/AArch64 source-build path identified. Physical Python 3.13 + pyalsaaudio verification remains pending on the target Raspberry Pi hardware.
 
 ## 4. Audio Architecture
-Audio capture utilizes a strict interface boundary (`AudioDevice`). The production adapter `ALSAAudioDevice` uses `PCM_NORMAL` (blocking reads), explicitly avoiding CPU-heavy Python sleep loops. The tests fall back seamlessly to `MockAudioDevice` allowing isolated offline development.
+Audio capture utilizes a strict interface boundary (`AudioDevice`). The production adapter `ALSAAudioDevice` uses `PCM_NORMAL` (blocking reads), explicitly avoiding CPU-heavy Python sleep loops.
 
 ## 5. Frame Calculation
 Frame dimensions are strictly deterministic based on configuration. For a standard config (16000Hz, 1 channel, 2-byte width, 20ms duration), the system automatically calculates `16000 * 0.02 * 1 * 2 = 640 bytes`. `ALSAAudioDevice` natively sets its `periodsize` to match the exact chunk frames required.
@@ -34,14 +34,14 @@ Frame dimensions are strictly deterministic based on configuration. For a standa
 The system strictly parses configuration values to apply `alsaaudio.PCM_FORMAT_S16_LE`, sample rate, and channels. If an XRUN occurs, it throws an `AudioOverrunError`.
 
 ## 7. Mock Implementation
-`MockAudioDevice` mimics the exact byte sizes of the requested stream using `\x00` fills, allowing the `audio-test` CLI to verify lifecycle logic offline.
+`MockAudioDevice` is provided for isolated unit testing and offline development. Production audio-test always uses ALSAAudioDevice and fails if the configured ALSA capture device cannot be initialized.
 
 ## 8. CLI Implementation
 Added `betel-pi audio-devices` which queries ALSA PCMs directly, and `betel-pi audio-test` which initiates a deterministic hardware capture to report XRUN counts, duration, Peak, and RMS values.
 
 ## 9. Unit Test Count/Result
-- **Total Tests:** 24
-- **Result:** 24 passed (0 failures). Tests execute fully offline without ALSA hardware or network access.
+- Total automated tests: 26
+- Result: 26 passed, 0 failed. Tests execute fully offline without ALSA hardware or network access.
 
 ## 10. Package Build Result
 `python -m build` successfully produces `sdist` and `wheel` metadata.
@@ -56,20 +56,31 @@ Added `betel-pi audio-devices` which queries ALSA PCMs directly, and `betel-pi a
 
 ## 12. Verification Breakdown
 
-### SOFTWARE VERIFIED
-- ALSA abstraction implemented
-- MockAudioDevice implemented
-- deterministic PCM frame calculation
-- blocking capture architecture defined
-- CLI (`audio-devices`, `audio-test`)
-- offline statistics (RMS/Peak) via Python `struct`/`math`
-- 26 tests fully offline
-- Package builds containing pinned dependencies
+### SOFTWARE VERIFICATION
+- ALSA adapter implemented
+- Mock adapter implemented
+- frame-size calculation verified
+- blocking capture architecture implemented
+- audio-devices implemented
+- audio-test implemented
+- production audio-test has no Mock fallback
+- configuration validation implemented
+- 26 automated tests passed
+- package build successful
+- dependency versions pinned
 
-### HARDWARE VERIFIED
-*(None - pending physical testing.)*
+### PHYSICAL HARDWARE VALIDATION
+Pending physical validation on Raspberry Pi 3A+.
 
-## 13. Items Deferred to M3
+## 13. Final Milestone 2 Status
+- M2 SOFTWARE IMPLEMENTATION: APPROVED
+- AUTOMATED TESTS: 26 passed, 0 failed
+- PACKAGE BUILD: Successful
+- HARDWARE VALIDATION: Pending physical Raspberry Pi 3A+ testing
+
+*The next validation step is physical deployment/testing on: Raspberry Pi 3A+, Debian 13 Trixie, Python 3.13, and a USB condenser microphone.*
+
+## 14. Items Deferred to M3
 - **VAD Processing Lifecycle:** Integrating `webrtcvad-wheels` with the captured frames.
 - **Recording Logic:** Writing frames to WAV files via the `WavWriter`.
 - **Pre-Roll/Post-Roll/Silence orchestration:** Enforcing ring buffers and silence tracking.
