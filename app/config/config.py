@@ -58,8 +58,8 @@ class Config:
 
         max_dur = recording.get("max_duration_sec")
         min_dur = recording.get("min_duration_sec")
-        if isinstance(max_dur, bool) or not isinstance(max_dur, (int, float)) or max_dur <= 0: raise ConfigError("recording.max_duration_sec must be numeric > 0.")
-        if isinstance(min_dur, bool) or not isinstance(min_dur, (int, float)) or min_dur <= 0: raise ConfigError("recording.min_duration_sec must be numeric > 0.")
+        if isinstance(max_dur, bool) or type(max_dur) not in (int, float) or max_dur <= 0: raise ConfigError("recording.max_duration_sec must be numeric > 0.")
+        if isinstance(min_dur, bool) or type(min_dur) not in (int, float) or min_dur <= 0: raise ConfigError("recording.min_duration_sec must be numeric > 0.")
         if min_dur > max_dur: raise ConfigError("recording.min_duration_sec must not exceed max_duration_sec.")
 
         # VAD Section
