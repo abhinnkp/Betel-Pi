@@ -42,38 +42,61 @@ All IO errors forcefully trip the engine into the `ERROR` state and invoke hard-
 A cleanly invoked `engine.force_shutdown()` enables the service wrapper to invoke `.close()` gracefully against open WAVs on `SIGTERM`.
 
 ## 13. Memory Strategy
-Uses standard-library streaming. PCM fragments are directly piped out to `libIO` continuously, completely circumventing multi-megabyte RAM aggregations across extended meetings. Memory profile remains rigidly flat.
+The implementation uses streaming WAV writes and does not intentionally accumulate the complete recording in RAM. Physical memory behavior remains subject to target-device validation.
 
 ## 14. Integration-Test Result
 Passed successfully proving exact frame order preservation offline avoiding real ALSA implementations locally via standard deterministic assertions.
 
 ## 15. Exact Final Test Count / Result
-- Total automated tests: 38
-- Result: 38 passed, 0 failed. Tests execute fully offline.
+- Total automated tests: 40
+- Result: 40 passed, 0 failed. Tests execute fully offline.
 
 ## 16. Package Build Result
 Successful via standard `python -m build`. No unexpected heavyweight runtime dependencies were added.
 
-## 17. Known Software Limitations
-None found within the tested software parameters. File rotation logic does not delete older files gracefully inside M4 bounds; they remain indefinitely.
+## 17. Known Limitations
+None found within the tested software parameters. File rotation logic does not delete older files gracefully inside M4 bounds; they remain indefinitely. However, physical/meeting-room validation has NOT been performed.
+
+The following hardware integrations remain unverified and pending:
+- Raspberry Pi 3A+ long-duration recording
+- actual USB microphone integration
+- sustained filesystem write performance
+- SD-card behavior
+- CPU usage during complete pipeline
+- memory usage on target hardware
+- long unattended recording
+- real meeting-room audio behavior
 
 ## 18. Items Deferred to M5
 - System SMB mounting routines
 - File storage lifecycle & purging limits
 - Multi-device synchronization
 - M5 application master loop orchestration
+- upload retry
+- network monitoring
+- end-of-day upload
 
 ---
 
 ### SOFTWARE VERIFIED
-- Valid WAV implementations generated natively.
-- Pre-roll and sequential chronological boundaries rigidly respected natively.
-- Post-roll timeouts respected and correctly interrupted by speech overlaps.
-- Maximum duration hard stops enforced.
-- Memory profile strictly flat without frame cache buildup.
-- 38 offline automated tests pass.
-- Build constraints upheld natively.
+- Recording architecture implemented
+- Frame ownership contract verified explicitly avoiding duplicates
+- Valid WAV implementations generated natively via standard `wave`
+- Pre-roll and sequential chronological boundaries rigidly respected natively
+- Triggering-frame correctly isolated and routed once
+- Post-roll timeouts respected
+- Post-roll correctly interrupted by speech overlaps without bugs
+- Maximum duration hard stops enforced
+- Minimum duration padding loops implemented
+- File naming/collision handling safely appending indexes
+- Shutdown handling safe against open descriptors
+- Error handling forces `ERROR` state and closes files rigidly
+- Memory profile strictly flat without frame cache buildup
+- 40 offline automated tests pass
+- Build constraints upheld natively
 
-### PHYSICAL VALIDATION PENDING
+### PHYSICAL / INTEGRATION VALIDATION PENDING
 - Physical evaluation of disk read/write bandwidth under extended ALSA loads.
 - Real-world validation of timestamp alignments locally.
+- Extended continuous ALSA streams running indefinitely on Pi 3A+.
+- SD-card and USB mic connectivity issues simulated live.

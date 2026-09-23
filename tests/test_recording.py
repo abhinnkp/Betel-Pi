@@ -39,7 +39,7 @@ def test_engine_state_transitions(tmp_path):
         pre_roll_frames=[f_pre1, f_pre2]
     )
 
-    engine.handle_vad_event(start_event)
+    engine.process_frame(f_trig, start_event)
     assert engine.state == RecordingState.RECORDING
     assert engine._frames_written == 3 # pre1, pre2, trig
     assert engine._writer is not None
@@ -51,13 +51,14 @@ def test_engine_state_transitions(tmp_path):
     assert engine._frames_written == 4
 
     # Handle SPEECH_END
+    # The frame processing SPEECH_END counts as the first post-roll frame (frame 5 overall)
     end_event = VADEvent(type=VADEventType.SPEECH_END)
-    engine.handle_vad_event(end_event)
+    engine.process_frame(b'\x05'*640, end_event)
     assert engine.state == RecordingState.POST_ROLL
+    assert engine._post_roll_counter == 1
 
-    # Post roll is 60ms = 3 frames.
-    f_post1, f_post2 = b'\x05'*640, b'\x06'*640
-    assert engine.process_frame(f_post1) is None
+    # Post roll is 60ms = 3 frames. So we need 2 more.
+    f_post2 = b'\x06'*640
     assert engine.process_frame(f_post2) is None
     assert engine.state == RecordingState.POST_ROLL
 
@@ -80,50 +81,95 @@ def test_engine_state_transitions(tmp_path):
         data = wav.readframes(wav.getnframes())
 
         # Verify strict exact ordering. No duplication of f_trig.
-        expected_data = f_pre1 + f_pre2 + f_trig + f_speech + f_post1 + f_post2 + f_post3
+        expected_data = f_pre1 + f_pre2 + f_trig + f_speech + b'\x05'*640 + f_post2 + f_post3
         assert data == expected_data
 
-def test_post_roll_interruption(tmp_path):
+def test_post_roll_interruption_no_duplicates(tmp_path):
     cfg = get_base_cfg(tmp_path)
     engine = RecordingEngine(cfg)
 
-    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
-    engine.handle_vad_event(start_event)
+    # 1. Initial Speech
+    f_trig1 = b'\x01'*640
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=f_trig1)
+    engine.process_frame(f_trig1, start_event)
     assert engine.state == RecordingState.RECORDING
+    assert engine._frames_written == 1
 
-    engine.handle_vad_event(VADEvent(type=VADEventType.SPEECH_END))
+    # 2. Ends
+    engine.process_frame(b'\x02'*640, VADEvent(type=VADEventType.SPEECH_END))
     assert engine.state == RecordingState.POST_ROLL
 
-    # Process 1 post-roll frame
-    engine.process_frame(b'\x02'*640)
-    assert engine._post_roll_counter == 1
+    # 3. Post roll ticks 1 frame
+    engine.process_frame(b'\x03'*640)
+    assert engine._frames_written == 3  # (trig1, b02, b03)
 
-    # Speech resumes! (A new SPEECH_START comes in during POST_ROLL)
-    resume_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x03'*640)
-    engine.handle_vad_event(resume_event)
+    # 4. Speech resumes BEFORE post-roll completes
+    # We pass the same triggering frame to the processor as happens in the real pipeline
+    f_trig2 = b'\x04'*640
+    resume_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=f_trig2)
+    engine.process_frame(f_trig2, resume_event)
 
-    # Should flip back to RECORDING without creating a new file
     assert engine.state == RecordingState.RECORDING
     assert engine._post_roll_counter == 0
-    # The previous 2 frames + 1 triggering frame = 3
-    assert engine._frames_written == 3
+    # Crucially, _frames_written must be exactly 4 (trig1, 02, 03, trig2). It must NOT be 5 (duplicate trig2).
+    assert engine._frames_written == 4
 
-    # Then eventually ends naturally...
-    engine.handle_vad_event(VADEvent(type=VADEventType.SPEECH_END))
-    assert engine.state == RecordingState.POST_ROLL
-
+    # 5. Ends naturally
+    # processing SPEECH_END counts as post_roll_counter = 1
+    engine.process_frame(b'\x05'*640, VADEvent(type=VADEventType.SPEECH_END))
+    assert engine._post_roll_counter == 1
     res = None
-    for i in range(3): # Configured post-roll is 3 frames
-        res = engine.process_frame(b'\x04'*640)
 
+    # We must exceed minimum duration limits so post-roll can naturally finalize.
+    # Current config min is 0.1s (5 frames). We have 5 frames. Post roll requires 60ms (3 frames).
+    # Since we are already at 5 frames when SPEECH_END occurred, exactly 3 post-roll frames are needed.
+    res = engine.process_frame(b'\x06'*640) # PR 2
+    assert res is None
+    res = engine.process_frame(b'\x07'*640) # PR 3 (Completes)
     assert res is not None
     assert engine.state == RecordingState.IDLE
+
+def test_minimum_duration_delays_finalization(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    # Config sets min_duration = 0.1s (5 frames). Post roll = 60ms (3 frames).
+    engine = RecordingEngine(cfg)
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+    engine.process_frame(b'\x01'*640, start_event) # Frame 1
+
+    # Immediate end
+    engine.process_frame(b'\x02'*640, VADEvent(type=VADEventType.SPEECH_END)) # Frame 2 (Post roll starts)
+
+    # Process the exact 3 post-roll frames
+    engine.process_frame(b'\x03'*640) # Frame 3
+    engine.process_frame(b'\x04'*640) # Frame 4
+    res = engine.process_frame(b'\x05'*640) # Frame 5 (Post roll technically complete, but min dur 5 frames is hit EXACTLY here)
+
+    assert res is not None
+    assert res.bytes_written == 5 * 640
+
+def test_maximum_duration_caps_minimum_duration(tmp_path):
+    # Configure an edge case where max duration < min duration (though validated against in Config, we check the engine logic prioritizes Max)
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+    engine.max_frames = 2 # Force max frames lower than min
+    engine.min_frames = 10
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+    engine.process_frame(b'\x01'*640, start_event)
+
+    # Max duration hit on 2nd frame. It must terminate immediately despite min_frames.
+    res = engine.process_frame(b'\x02'*640)
+    assert res is not None
+    assert engine.state == RecordingState.IDLE
+    assert res.bytes_written == 2 * 640
 
 def test_maximum_duration_enforcement(tmp_path):
     cfg = get_base_cfg(tmp_path) # Max duration is 1 sec = 50 frames
     engine = RecordingEngine(cfg)
 
-    engine.handle_vad_event(VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x00'*640))
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x00'*640)
+    engine.process_frame(b'\x00'*640, start_event)
 
     res = None
     for i in range(48): # We have 1 triggering frame, so adding 48 gives 49 total
@@ -140,7 +186,8 @@ def test_force_shutdown_clean(tmp_path):
     cfg = get_base_cfg(tmp_path)
     engine = RecordingEngine(cfg)
 
-    engine.handle_vad_event(VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x00'*640))
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x00'*640)
+    engine.process_frame(b'\x00'*640, start_event)
     engine.process_frame(b'\x00'*640)
 
     assert engine.state == RecordingState.RECORDING

@@ -64,51 +64,65 @@ class RecordingEngine:
 
     def _generate_filename(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        return os.path.join(self.output_path, f"betel_{timestamp}.wav")
+        base_name = os.path.join(self.output_path, f"betel_{timestamp}")
+        final_name = f"{base_name}.wav"
+        counter = 1
 
-    def handle_vad_event(self, event: VADEvent):
-        """Handle top-level state transitions dictated by VAD events."""
-        if event.type == VADEventType.SPEECH_START:
-            if self.state in (RecordingState.IDLE, RecordingState.ERROR):
-                self._start_recording(event)
-            elif self.state == RecordingState.POST_ROLL:
-                # Post-roll interrupted. Resume recording natively.
-                logger.info("Speech resumed during post-roll. Cancelling finalization.")
-                self.state = RecordingState.RECORDING
-                self._post_roll_counter = 0
+        while os.path.exists(final_name):
+            final_name = f"{base_name}_{counter}.wav"
+            counter += 1
 
-                # IMPORTANT: If VAD fires SPEECH_START again while we are in POST_ROLL,
-                # we are technically already recording the frames leading up to it.
-                # To prevent duplicate frames, we only append the triggering frame.
-                # The pre_roll_frames were already captured as normal frames during POST_ROLL.
-                if event.triggering_frame:
-                    self._write_frame(event.triggering_frame)
+        return final_name
 
-        elif event.type == VADEventType.SPEECH_END:
-            if self.state == RecordingState.RECORDING:
-                logger.info("Speech ended. Entering POST_ROLL.")
-                self.state = RecordingState.POST_ROLL
-                self._post_roll_counter = 0
-
-    def process_frame(self, frame: bytes) -> Optional[RecordingResult]:
+    def process_frame(self, frame: bytes, event: Optional[VADEvent] = None) -> Optional[RecordingResult]:
         """
-        Process incoming streaming audio frames.
+        Process incoming streaming audio frames and their synchronized VAD events.
+        Enforces a strict frame ownership contract: The engine will never write the same frame twice.
         Returns a RecordingResult if a recording naturally finalizes during this frame loop.
         """
-        if self.state == RecordingState.IDLE or self.state == RecordingState.ERROR:
-            return None
+        frame_consumed = False
 
-        # Write the incoming frame immediately
-        self._write_frame(frame)
+        if event:
+            if event.type == VADEventType.SPEECH_START:
+                if self.state in (RecordingState.IDLE, RecordingState.ERROR):
+                    self._start_recording(event)
+                    # The _start_recording sequence handles writing the triggering_frame exactly once
+                    frame_consumed = True
+                elif self.state == RecordingState.POST_ROLL:
+                    logger.info("Speech resumed during post-roll. Cancelling finalization.")
+                    self.state = RecordingState.RECORDING
+                    self._post_roll_counter = 0
 
-        # Enforce Maximum Duration bounds rigidly
-        if self._frames_written >= self.max_frames:
+                    # The VADEvent contains the triggering_frame.
+                    # We write it here exactly once.
+                    if event.triggering_frame:
+                        self._write_frame(event.triggering_frame)
+                        frame_consumed = True
+
+            elif event.type == VADEventType.SPEECH_END:
+                if self.state == RecordingState.RECORDING:
+                    logger.info("Speech ended. Entering POST_ROLL.")
+                    self.state = RecordingState.POST_ROLL
+                    self._post_roll_counter = 0
+
+        # If the frame hasn't been consumed by the event handlers (i.e. it wasn't a triggering frame), write it normally.
+        if not frame_consumed and self.state in (RecordingState.RECORDING, RecordingState.POST_ROLL):
+            self._write_frame(frame)
+
+        # Enforce Maximum Duration bounds rigidly. This always takes precedence.
+        if self.state in (RecordingState.RECORDING, RecordingState.POST_ROLL) and self._frames_written >= self.max_frames:
             logger.warning(f"Maximum recording duration ({self.max_duration_sec}s) reached. Forcing finalization.")
             return self._finalize_recording()
 
+        # Handle post-roll and minimum duration logic.
         if self.state == RecordingState.POST_ROLL:
             self._post_roll_counter += 1
-            if self._post_roll_counter >= self.post_roll_frames_target:
+
+            # Both conditions MUST be satisfied to finalize natively.
+            post_roll_complete = self._post_roll_counter >= self.post_roll_frames_target
+            min_duration_reached = self._frames_written >= self.min_frames
+
+            if post_roll_complete and min_duration_reached:
                 return self._finalize_recording()
 
         return None
@@ -176,12 +190,17 @@ class RecordingEngine:
             self.state = RecordingState.ERROR
             return None
 
+        # Duration derived rigidly from hardware frame iterations, not python runtime wall clocks.
+        frame_dur_sec = self.config.raw["audio"]["frame_duration_ms"] / 1000.0
+        exact_duration_sec = self._frames_written * frame_dur_sec
+
         result = RecordingResult(
             filepath=self._current_filepath,
             start_time=self._start_time,
             end_time=time.time(),
             bytes_written=bytes_written
         )
+        result.duration_sec = exact_duration_sec
 
         logger.info(f"Recording finalized: {result.filepath} ({bytes_written} bytes)")
 
