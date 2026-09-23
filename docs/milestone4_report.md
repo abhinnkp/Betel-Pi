@@ -30,7 +30,7 @@ A counter decremented directly inside the polling loops post `SPEECH_END`. Allow
 Strictly calculated via math `(max_duration_sec * sample_rate / chunk_frames)`. It forces finalization upon breaching the limit unconditionally preventing massive disk bloat.
 
 ## 9. Minimum Duration
-Monitored analogously to the max cap. Currently finalizes the file safely but raises a strong internal logging warning, ensuring deterministic evaluation.
+If speech ends before the configured minimum duration, the engine continues consuming real incoming PCM frames until the minimum duration and required post-roll conditions are satisfied, unless `max_duration_sec` is reached first.
 
 ## 10. File Naming
 Names deterministicly utilize native `datetime.now()` timestamping appended with microsecond tracking `<path>/betel_YYYYMMDD_HHMMSS_micros.wav` naturally guarding against collision logic.
@@ -48,8 +48,8 @@ The implementation uses streaming WAV writes and does not intentionally accumula
 Passed successfully proving exact frame order preservation offline avoiding real ALSA implementations locally via standard deterministic assertions.
 
 ## 15. Exact Final Test Count / Result
-- Total automated tests: 40
-- Result: 40 passed, 0 failed. Tests execute fully offline.
+- Total automated tests: 43
+- Result: 43 passed, 0 failed. Tests execute fully offline.
 
 ## 16. Package Build Result
 Successful via standard `python -m build`. No unexpected heavyweight runtime dependencies were added.
@@ -87,12 +87,11 @@ The following hardware integrations remain unverified and pending:
 - Post-roll timeouts respected
 - Post-roll correctly interrupted by speech overlaps without bugs
 - Maximum duration hard stops enforced
-- Minimum duration padding loops implemented
+- Minimum duration logic implemented (consuming real frames, no synthetic padding)
 - File naming/collision handling safely appending indexes
 - Shutdown handling safe against open descriptors
 - Error handling forces `ERROR` state and closes files rigidly
-- Memory profile strictly flat without frame cache buildup
-- 40 offline automated tests pass
+- 43 offline automated tests pass
 - Build constraints upheld natively
 
 ### PHYSICAL / INTEGRATION VALIDATION PENDING

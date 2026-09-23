@@ -62,6 +62,14 @@ class Config:
         if isinstance(min_dur, bool) or type(min_dur) not in (int, float) or min_dur <= 0: raise ConfigError("recording.min_duration_sec must be numeric > 0.")
         if min_dur > max_dur: raise ConfigError("recording.min_duration_sec must not exceed max_duration_sec.")
 
+        # Verify mathematically that the requested max_duration actually equates to at least 1 frame
+        sample_rate = audio.get("sample_rate")
+        frame_dur_ms = audio.get("frame_duration_ms")
+        frames_per_buffer = int(sample_rate * (frame_dur_ms / 1000.0))
+        max_frames = int(max_dur * sample_rate / frames_per_buffer)
+        if max_frames <= 0:
+            raise ConfigError(f"recording.max_duration_sec ({max_dur}) is too short to produce even 1 valid PCM frame.")
+
         # VAD Section
         vad = self._config.get("vad")
         if not isinstance(vad, dict): raise ConfigError("VAD section missing or invalid type.")

@@ -146,10 +146,18 @@ class RecordingEngine:
             self._frames_written = 0
             self.state = RecordingState.RECORDING
 
+            # Maximum Duration must ALWAYS take precedence. It includes pre-roll and triggering frames.
+            # If the configured pre-roll exceeds max_duration, we must truncate it.
+            # We guarantee room for the triggering frame (since max_frames >= 1 natively).
+            allowed_pre_roll_frames = self.max_frames - 1
+
             # Preserve M3 Contract: Write pre-roll chronologically
             if event.pre_roll_frames:
-                self._writer.write_frames(event.pre_roll_frames)
-                self._frames_written += len(event.pre_roll_frames)
+                # Take only the most recent N frames that fit within the allowed bounds
+                safe_pre_roll = event.pre_roll_frames[-allowed_pre_roll_frames:] if allowed_pre_roll_frames > 0 else []
+                if safe_pre_roll:
+                    self._writer.write_frames(safe_pre_roll)
+                    self._frames_written += len(safe_pre_roll)
 
             # Write Triggering frame exactly once
             if event.triggering_frame:
@@ -159,6 +167,13 @@ class RecordingEngine:
         except Exception as e:
             logger.error(f"Failed to start recording sequence: {e}")
             self.state = RecordingState.ERROR
+            if self._writer:
+                try:
+                    self._writer.close()
+                except Exception as close_e:
+                    logger.error(f"Failed to clean up writer after start failure: {close_e}")
+                finally:
+                    self._writer = None
 
     def _write_frame(self, frame: bytes):
         if self._writer and self.state in (RecordingState.RECORDING, RecordingState.POST_ROLL):
@@ -168,7 +183,9 @@ class RecordingEngine:
             except Exception as e:
                 logger.error(f"Write failure during recording: {e}")
                 self.state = RecordingState.ERROR
-                self._writer.close()
+                # Explicit cleanup is handled inside the writer's exception block already,
+                # but we drop the reference.
+                self._writer = None
 
     def _finalize_recording(self) -> Optional[RecordingResult]:
         """Safely closes the WAV writer and transitions back to IDLE. Returns metadata."""

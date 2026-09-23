@@ -164,6 +164,33 @@ def test_maximum_duration_caps_minimum_duration(tmp_path):
     assert engine.state == RecordingState.IDLE
     assert res.bytes_written == 2 * 640
 
+def test_preroll_fits_exactly_max_duration(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+    engine.max_frames = 3 # 3 frames absolute max
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640, pre_roll_frames=[b'\x02'*640, b'\x03'*640])
+
+    # Pre-roll (2 frames) + Trigger (1 frame) = 3 frames.
+    # The moment we process this, max duration should immediately fire finalization, returning a valid result instantly.
+    res = engine.process_frame(b'\x01'*640, start_event)
+    assert res is not None
+    assert engine.state == RecordingState.IDLE
+    assert res.bytes_written == 3 * 640
+
+def test_preroll_larger_than_max_duration(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+    engine.max_frames = 2 # absolute max is 2 frames (1 pre-roll + 1 trigger)
+
+    # Send 3 pre-roll frames
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640, pre_roll_frames=[b'\x02'*640, b'\x03'*640, b'\x04'*640])
+
+    res = engine.process_frame(b'\x01'*640, start_event)
+    assert res is not None
+    assert engine.state == RecordingState.IDLE
+    assert res.bytes_written == 2 * 640
+
 def test_maximum_duration_enforcement(tmp_path):
     cfg = get_base_cfg(tmp_path) # Max duration is 1 sec = 50 frames
     engine = RecordingEngine(cfg)
@@ -195,3 +222,17 @@ def test_force_shutdown_clean(tmp_path):
     assert res is not None
     assert res.bytes_written == 2 * 640
     assert engine.state == RecordingState.IDLE
+
+def test_writer_failure_propagates(tmp_path):
+    # Use an invalid directory so WavWriter fails to open
+    raw_cfg = get_base_cfg(tmp_path).raw
+    raw_cfg["recording"]["output_path"] = "/root/invalid/directory/path/never/exists"
+    cfg = Config(raw_cfg)
+    engine = RecordingEngine(cfg)
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+    # The os.makedirs might fail natively or the writer open will fail.
+    engine.process_frame(b'\x01'*640, start_event)
+
+    # Engine should catch it and enter ERROR state, without throwing an uncaught exception up.
+    assert engine.state == RecordingState.ERROR

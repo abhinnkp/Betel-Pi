@@ -39,8 +39,11 @@ class WavWriter:
             self._bytes_written += len(data)
         except Exception as e:
             logger.error(f"Failed to write to WAV file {self.filepath}: {e}")
-            self.close()
-            raise
+            try:
+                self.close()
+            except Exception as close_e:
+                logger.error(f"Failed to clean up writer during write exception: {close_e}")
+            raise e
 
     def close(self):
         if self._wav:
@@ -49,5 +52,6 @@ class WavWriter:
                 logger.info(f"Finalized WAV file {self.filepath} ({self._bytes_written} bytes)")
             except Exception as e:
                 logger.error(f"Error closing WAV file {self.filepath}: {e}")
+                raise e
             finally:
                 self._wav = None
