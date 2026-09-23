@@ -1,10 +1,17 @@
 from enum import Enum, auto
 from typing import Optional, List
+from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
-class VADEvent(Enum):
+class VADEventType(Enum):
     SPEECH_START = auto()
     SPEECH_END = auto()
+
+@dataclass
+class VADEvent:
+    type: VADEventType
+    triggering_frame: Optional[bytes] = None
+    pre_roll_frames: List[bytes] = field(default_factory=list)
 
 class VADState(Enum):
     SILENCE = auto()

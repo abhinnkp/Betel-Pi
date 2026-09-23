@@ -29,14 +29,17 @@ Correctly forces consecutive boolean truths from the raw VAD before transitionin
 ## 7. Silence Threshold
 Correctly asserts continued silence tracking before issuing an end event.
 
-## 8. Pre-Roll Implementation
-Implemented via a bounded `collections.deque` with `maxlen` derived precisely from the frame duration vs millisecond configurations, guaranteeing exact memory capacities. The `SPEECH_START` event ships this list array correctly.
+## 8. Pre-Roll Semantics
+Implemented via a bounded `collections.deque`. Pre-roll contains *only* audio frames immediately preceding the `SPEECH_START`-triggering frame. The triggering frame is delivered separately in the `VADEvent` and must not be duplicated.
+
+## 9. Exact Pre-Roll Rounding Behavior
+The pre-roll maximum frame boundary is mathematically derived via exact integer division rounding (`pre_roll_ms // frame_duration_ms`).
 
 ## 9. Post-Roll Deferral
 Recognized in logic but explicit execution is deferred to Milestone 4.
 
 ## 10. Event Model
-Abstracted cleanly as Enum flags: `SPEECH_START` and `SPEECH_END`.
+Abstracted cleanly via a strongly typed `VADEvent` dataclass carrying the `VADEventType`, the `triggering_frame`, and `pre_roll_frames` without duplication.
 
 ## 11. VAD Disabled Behavior
 Handled natively in the StateMachine where processing yields `None` statically if the YAML states `enabled: False`.
@@ -44,39 +47,53 @@ Handled natively in the StateMachine where processing yields `None` statically i
 ## 12. CLI Diagnostic
 Added `betel-pi vad-test` with specific flags indicating Mock or Real device execution paths to diagnose threshold/trigger settings interactively.
 
-## 13. Exact Test Count / Result
-- Total tests: 32
-- Passed: 32
-- Failed: 0
-- Skipped: 0
+## 13. Exact Final Test Count
+- Total automated tests: 34
+- Result: 34 passed, 0 failed. Tests execute fully offline.
 
 ## 14. Package Build Result
-Successful via standard `python -m build`.
+Successful via standard `python -m build`. No unexpected heavyweight runtime dependencies were added.
 
-## 15. CPU Considerations
-All buffering structures leverage pre-allocated `maxlen` boundaries or Python internal optimizations to maintain O(1) appending and popping. Standard library features prevent heavy CPU loading. No NumPy, No SciPy, No multi-processing.
+## 15. Known Software Limitations
+None found within the tested software parameters.
 
-## 16. Known Limitations
-- None found during software tests, standard `pyalsaaudio` offline constraints inherited.
+## 16. Physical Validation Pending
+Physical/meeting-room validation has not yet been performed. Known pending validation items on the physical Raspberry Pi 3A+ include:
+- ambient meeting-room noise
+- speech detection accuracy
+- false positives
+- false negatives
+- microphone placement effects
+- background HVAC/fan noise
+- multiple speakers
+- distant speech
 
-## 17. Meeting-room tuning items
-- Currently defaulting configurations: `mode=3`, `speech_start_frames=3`, `silence_frames=25`. Need validation on actual ambient sounds.
+## 17. Meeting-room tuning pending
+- Currently defaulting configurations (`mode=2`, `speech_start_frames=3`, `silence_frames=25`) will need iterative adjustments during live physical testing.
 
 ## 18. Items Deferred to M4
-- Recording files/WAV creation.
-- Recording segmentation logic.
-- Storage lifecycle and bounds checking.
-- Post-roll enforcement logic onto writers.
-- SMB integrations.
-- File-naming architectures.
+- Recording files / WAV creation
+- Recording segmentation logic
+- Storage lifecycle and bounds checking
+- Post-roll enforcement logic onto writers
+- SMB integrations
+- File-naming architectures
 
 ---
 
-### Software Verification
-- Automated state transitions proven.
-- Debounce timers proven.
-- Test suite executed 32 tests efficiently offline.
-- Mock CLI execution executes gracefully to completion.
+### SOFTWARE VERIFIED
+- WebRTC VAD abstractions implemented
+- Dependency constraint validations implemented
+- Strict frame validation checks
+- VAD state machine implemented
+- Speech-start logic and debounce implemented
+- Speech-end logic and debounce implemented
+- Strict pre-roll semantics verified
+- Event model implemented
+- VAD disabled behavior
+- CLI Diagnostic
+- Package build
+- 34 Automated Tests Passed
 
-### Physical/Meeting-Room Validation
-- **NOT PERFORMED**. Threshold values and physical recording accuracy remains pending real-world installation tuning.
+### PHYSICAL VALIDATION PENDING
+- Physical meeting-room VAD accuracy, noise evaluations, and multi-speaker tests remain unverified until physical installation.

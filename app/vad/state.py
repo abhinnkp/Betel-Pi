@@ -1,6 +1,6 @@
 from collections import deque
-from typing import List, Tuple, Optional
-from app.vad.base import VADProcessor, VADEvent, VADState
+from typing import Optional
+from app.vad.base import VADProcessor, VADEventType, VADEvent, VADState
 from app.config.config import Config
 import logging
 
@@ -31,17 +31,13 @@ class VADStateMachine:
         self.speech_counter = 0
         self.silence_counter = 0
 
-    def process_frame(self, frame: bytes) -> Optional[Tuple[VADEvent, List[bytes]]]:
+    def process_frame(self, frame: bytes) -> Optional[VADEvent]:
         """
-        Process a single frame and return a (VADEvent, pre_roll_frames) tuple if a state transition occurs.
+        Process a single frame and return a VADEvent if a state transition occurs.
         If VAD is disabled, it acts as a pass-through (never triggers speech).
         """
         if not self.enabled:
             return None
-
-        # Maintain bounded pre-roll when in SILENCE
-        if self.state == VADState.SILENCE and self.pre_roll_buffer is not None:
-            self.pre_roll_buffer.append(frame)
 
         is_speech = self.processor.process_frame(frame)
 
@@ -55,14 +51,24 @@ class VADStateMachine:
                     self.silence_counter = 0
                     logger.info("VAD Event: SPEECH_START")
 
-                    # Extract pre-roll frames to return with the event
+                    # Extract pre-roll frames to return with the event.
+                    # Notice we explicitly do NOT append the triggering frame to the pre-roll.
                     pre_roll_frames = list(self.pre_roll_buffer) if self.pre_roll_buffer else []
-                    if self.pre_roll_buffer:
+                    if self.pre_roll_buffer is not None:
                         self.pre_roll_buffer.clear()
 
-                    return (VADEvent.SPEECH_START, pre_roll_frames)
+                    return VADEvent(
+                        type=VADEventType.SPEECH_START,
+                        triggering_frame=frame,
+                        pre_roll_frames=pre_roll_frames
+                    )
             else:
                 self.speech_counter = 0
+
+            # Maintain bounded pre-roll when in SILENCE, strictly appending AFTER evaluation
+            # so that a triggering frame never ends up inside the pre_roll list.
+            if self.pre_roll_buffer is not None:
+                self.pre_roll_buffer.append(frame)
 
         elif self.state == VADState.SPEECH:
             if not is_speech:
@@ -73,7 +79,7 @@ class VADStateMachine:
                     self.silence_counter = 0
                     self.speech_counter = 0
                     logger.info("VAD Event: SPEECH_END")
-                    return (VADEvent.SPEECH_END, [])
+                    return VADEvent(type=VADEventType.SPEECH_END, triggering_frame=None, pre_roll_frames=[])
             else:
                 self.silence_counter = 0
 

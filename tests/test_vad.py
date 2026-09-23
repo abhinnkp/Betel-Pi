@@ -1,6 +1,6 @@
 import pytest
 from app.config.config import Config
-from app.vad.base import VADState, VADEvent
+from app.vad.base import VADState, VADEventType
 from app.vad.mock import MockVADProcessor
 from app.vad.webrtc import WebRTCVADProcessor
 from app.vad.state import VADStateMachine
@@ -52,7 +52,6 @@ def test_vad_state_machine_speech_trigger():
     # speech_start_frames = 3, silence_frames = 5
     # pre_roll = 100ms / 20ms = 5 frames max len
 
-    # 2 silent frames, 3 speech frames (triggers START), 1 speech, 5 silence (triggers END)
     sequence = [False, False, True, True, True, True, False, False, False, False, False]
     vad = MockVADProcessor(cfg, sequence)
     sm = VADStateMachine(vad, cfg)
@@ -60,32 +59,87 @@ def test_vad_state_machine_speech_trigger():
     assert sm.state == VADState.SILENCE
 
     # Frame 0, 1: Silence
-    assert sm.process_frame(b'\x00' * 640) is None
-    assert sm.process_frame(b'\x00' * 640) is None
+    f0, f1 = b'\x00'*640, b'\x01'*640
+    assert sm.process_frame(f0) is None
+    assert sm.process_frame(f1) is None
 
     # Frame 2, 3: Speech but no trigger yet
-    assert sm.process_frame(b'\x00' * 640) is None
-    assert sm.process_frame(b'\x00' * 640) is None
+    f2, f3 = b'\x02'*640, b'\x03'*640
+    assert sm.process_frame(f2) is None
+    assert sm.process_frame(f3) is None
 
     # Frame 4: 3rd Speech frame -> SPEECH_START
-    event = sm.process_frame(b'\x00' * 640)
+    f4 = b'\x04'*640
+    event = sm.process_frame(f4)
     assert event is not None
-    assert event[0] == VADEvent.SPEECH_START
-    assert len(event[1]) == 5 # Frames 0, 1, 2, 3, 4 are appended to buffer right before process checks.
+    assert event.type == VADEventType.SPEECH_START
+
+    # Verify explicitly that pre-roll ONLY contains the frames immediately before trigger.
+    # Because max_len is 5, it should contain f0, f1, f2, f3.
+    # Importantly, f4 is the triggering frame and MUST NOT be in pre-roll.
+    assert len(event.pre_roll_frames) == 4
+    assert event.pre_roll_frames == [f0, f1, f2, f3]
+    assert event.triggering_frame == f4
+
     assert sm.state == VADState.SPEECH
 
     # Frame 5: Speech continues
-    assert sm.process_frame(b'\x00' * 640) is None
+    f5 = b'\x05'*640
+    assert sm.process_frame(f5) is None
 
     # Frame 6, 7, 8, 9: Silence begins but no trigger
-    for _ in range(4):
-        assert sm.process_frame(b'\x00' * 640) is None
+    for i in range(6, 10):
+        assert sm.process_frame(bytes([i])*640) is None
 
     # Frame 10: 5th Silence frame -> SPEECH_END
-    event = sm.process_frame(b'\x00' * 640)
+    f10 = b'\x0a'*640
+    event = sm.process_frame(f10)
     assert event is not None
-    assert event[0] == VADEvent.SPEECH_END
+    assert event.type == VADEventType.SPEECH_END
     assert sm.state == VADState.SILENCE
+
+def test_zero_pre_roll():
+    raw_cfg = get_base_cfg().raw
+    raw_cfg["vad"]["pre_roll_ms"] = 0
+    cfg = Config(raw_cfg)
+
+    sequence = [True, True, True]
+    vad = MockVADProcessor(cfg, sequence)
+    sm = VADStateMachine(vad, cfg)
+
+    f0, f1, f2 = b'\x00'*640, b'\x01'*640, b'\x02'*640
+    assert sm.process_frame(f0) is None
+    assert sm.process_frame(f1) is None
+    event = sm.process_frame(f2)
+
+    assert event.type == VADEventType.SPEECH_START
+    assert event.pre_roll_frames == []
+    assert event.triggering_frame == f2
+
+def test_pre_roll_bounds():
+    raw_cfg = get_base_cfg().raw
+    raw_cfg["vad"]["pre_roll_ms"] = 40 # Exactly 2 frames (40 // 20)
+    cfg = Config(raw_cfg)
+
+    # Sequence: 5 silence frames, then 3 speech frames
+    sequence = [False, False, False, False, False, True, True, True]
+    vad = MockVADProcessor(cfg, sequence)
+    sm = VADStateMachine(vad, cfg)
+
+    frames = [bytes([i])*640 for i in range(8)]
+
+    for i in range(5):
+        assert sm.process_frame(frames[i]) is None
+
+    assert sm.process_frame(frames[5]) is None
+    assert sm.process_frame(frames[6]) is None
+    event = sm.process_frame(frames[7])
+
+    assert event.type == VADEventType.SPEECH_START
+    assert event.triggering_frame == frames[7]
+    # The maxlen was 2, but we had 5 silence frames and 2 speech frames before trigger.
+    # Total prior frames: frames[0..6]. The last 2 are frames[5] and frames[6].
+    assert event.pre_roll_frames == [frames[5], frames[6]]
 
 def test_vad_disabled():
     raw_cfg = get_base_cfg().raw
@@ -114,4 +168,4 @@ def test_vad_counter_resets():
     assert sm.process_frame(b'\x00' * 640) is None # speech 2
 
     event = sm.process_frame(b'\x00' * 640)        # speech 3 -> triggers
-    assert event[0] == VADEvent.SPEECH_START
+    assert event.type == VADEventType.SPEECH_START

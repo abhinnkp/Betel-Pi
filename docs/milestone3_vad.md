@@ -12,7 +12,7 @@ The speech activity lifecycle sits purely below the recording lifecycle:
    - `silence_frames` enforces consecutive silence matches to trigger `SPEECH_END`.
 
 ## Pre-Roll and Post-Roll
-- **Pre-Roll:** The `VADStateMachine` retains a bounded memory queue (`collections.deque`) representing the exact configured `pre_roll_ms`. When `SPEECH_START` triggers, the event bundles these preceding frames with the signal so they aren't lost to latency. Memory allocations are strict and deterministic to protect the Raspberry Pi 3A+.
+- **Pre-Roll:** The `VADStateMachine` retains a bounded memory queue (`collections.deque`) determined by exact integer division rounding (`pre_roll_ms // frame_duration_ms`). Pre-roll contains *only* audio frames immediately preceding the `SPEECH_START`-triggering frame. The triggering frame itself is delivered separately and must not be duplicated. This explicit separation ensures recording engines in later milestones will seamlessly append `pre_roll + triggering_frame + audio_stream` without signal redundancy. Memory allocations are strict and deterministic to protect the Raspberry Pi 3A+.
 - **Post-Roll:** Configurable via `post_roll_ms`, however its actual file-writing behavior is **deferred to Milestone 4**.
 
 ## Validation and CPU Impact
