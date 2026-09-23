@@ -42,6 +42,17 @@ def test_cli_audio_test():
     assert "Audio Test FAILED: Failed to initialize ALSA device" in result.stdout
     assert "MockAudioDevice" not in result.stdout
 
+def test_cli_vad_test_mock():
+    # Test that --mock successfully runs the vad diagnostic offline
+    result = subprocess.run(
+        [sys.executable, "-m", "app.cli", "vad-test", "--mock"],
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+    assert "VAD Test Configuration:" in result.stdout
+    assert "Test Complete (Reached max diagnostic frames)." in result.stdout
+
 def test_cli_unknown_command():
     result = subprocess.run(
         [sys.executable, "-m", "app.cli", "unknown-command"],

@@ -102,6 +102,79 @@ def run_audio_test(config_path: str, frames_to_capture: int = 50):
     finally:
         device.close()
 
+def run_vad_test(config_path: str, use_mock: bool):
+    print(f"Loading configuration from {config_path}...")
+    cfg = Config.from_file(config_path)
+    vad_cfg = cfg.raw["vad"]
+    audio_cfg = cfg.raw["audio"]
+
+    print("\nVAD Test Configuration:")
+    print(f"VAD Enabled:    {vad_cfg['enabled']}")
+    print(f"Mode:           {vad_cfg['mode']}")
+    print(f"Sample Rate:    {audio_cfg['sample_rate']} Hz")
+    print(f"Frame Dur:      {vad_cfg['frame_duration_ms']} ms")
+    print(f"Speech Start:   {vad_cfg['speech_start_frames']} frames")
+    print(f"Silence End:    {vad_cfg['silence_frames']} frames")
+    print(f"Pre-roll:       {vad_cfg['pre_roll_ms']} ms")
+    print(f"Audio Source:   {'Mock' if use_mock else 'ALSA Hardware'}")
+    print("----------------------------------------")
+
+    if not vad_cfg["enabled"]:
+        print("VAD is disabled in configuration. Exiting.")
+        return
+
+    from app.vad.webrtc import WebRTCVADProcessor
+    from app.vad.state import VADStateMachine
+
+    try:
+        vad_processor = WebRTCVADProcessor(cfg)
+        state_machine = VADStateMachine(vad_processor, cfg)
+    except Exception as e:
+        print(f"[!] Failed to initialize WebRTC VAD: {e}")
+        sys.exit(1)
+
+    if use_mock:
+        from app.audio.mock_device import MockAudioDevice
+        device = MockAudioDevice(cfg)
+    else:
+        from app.audio.alsa_device import ALSAAudioDevice
+        try:
+            device = ALSAAudioDevice(cfg)
+        except Exception as e:
+            print(f"[!] VAD Test FAILED: Failed to initialize ALSA device: {e}")
+            sys.exit(1)
+
+    try:
+        device.open()
+        print("\nDevice opened successfully. Monitoring for VAD events (Press Ctrl+C to stop)...")
+        print(f"Current State: {state_machine.state.name}")
+
+        # Capture 100 frames max for the diagnostic test to ensure it terminates
+        frames_to_test = 100
+
+        for i in range(frames_to_test):
+            try:
+                frame = device.read_frame()
+                event = state_machine.process_frame(frame)
+
+                if event:
+                    event_type, pre_roll = event
+                    print(f"[{i:03d}] Event Detected: {event_type.name} | Pre-roll frames returned: {len(pre_roll)}")
+                    print(f"      -> New State: {state_machine.state.name}")
+
+            except AudioOverrunError:
+                print("[!] XRUN detected.")
+            except AudioDeviceError as e:
+                print(f"[!] Audio Error: {e}")
+                break
+
+        print("\nTest Complete (Reached max diagnostic frames).")
+
+    except KeyboardInterrupt:
+        print("\nTest Interrupted by User.")
+    finally:
+        device.close()
+
 def print_status(config_path: str):
     print("Betel Pi Status")
     print("===============")
@@ -125,7 +198,8 @@ def main():
     subparsers.add_parser("status", help="Show system status")
     subparsers.add_parser("audio-devices", help="Enumerate ALSA devices")
     subparsers.add_parser("audio-test", help="Capture a manual test recording")
-    subparsers.add_parser("vad-test", help="Run VAD diagnostics")
+    vad_parser = subparsers.add_parser("vad-test", help="Run VAD diagnostics")
+    vad_parser.add_argument("--mock", action="store_true", help="Use Mock Audio Device instead of ALSA")
     subparsers.add_parser("run", help="Start production recording lifecycle")
 
     args = parser.parse_args()
@@ -140,7 +214,7 @@ def main():
     elif args.command == "audio-test":
         run_audio_test(config_path)
     elif args.command == "vad-test":
-        print("Not implemented yet.")
+        run_vad_test(config_path, args.mock)
     elif args.command == "run":
         print("Not implemented yet. Will start production loop in future milestones.")
     else:
