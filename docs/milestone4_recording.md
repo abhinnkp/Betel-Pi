@@ -7,7 +7,7 @@ Betel Pi Milestone 4 implements the recording lifecycle engine. It acts as the d
 The `RecordingEngine` manages states strictly mapped to speech intervals, enforcing absolute chronological ordering without duplicating or manipulating signal structures:
 1. **SPEECH_START:**
    - Initialized `WavWriter`.
-   - Flushes explicit `pre_roll_frames` into the file header.
+   - Flushes explicit `pre_roll_frames` into the file header, dynamically retaining only the most recent frames that strictly fit within the `recording.max_duration_sec` limits to chronologically preserve bounds.
    - Appends the discrete `triggering_frame`.
    - Progresses state to `RECORDING`.
 2. **RECORDING:**

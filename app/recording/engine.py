@@ -205,6 +205,7 @@ class RecordingEngine:
         except Exception as e:
             logger.error(f"Error while finalizing: {e}")
             self.state = RecordingState.ERROR
+            self._writer = None
             return None
 
         # Duration derived rigidly from hardware frame iterations, not python runtime wall clocks.

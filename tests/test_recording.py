@@ -223,16 +223,77 @@ def test_force_shutdown_clean(tmp_path):
     assert res.bytes_written == 2 * 640
     assert engine.state == RecordingState.IDLE
 
-def test_writer_failure_propagates(tmp_path):
-    # Use an invalid directory so WavWriter fails to open
-    raw_cfg = get_base_cfg(tmp_path).raw
-    raw_cfg["recording"]["output_path"] = "/root/invalid/directory/path/never/exists"
-    cfg = Config(raw_cfg)
+from unittest.mock import patch
+
+def test_writer_open_failure(tmp_path):
+    cfg = get_base_cfg(tmp_path)
     engine = RecordingEngine(cfg)
 
     start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
-    # The os.makedirs might fail natively or the writer open will fail.
+
+    with patch("app.recording.wav_writer.WavWriter.open", side_effect=RuntimeError("simulated open failure")):
+        res = engine.process_frame(b'\x01'*640, start_event)
+
+    assert engine.state == RecordingState.ERROR
+    assert engine._writer is None
+    assert res is None
+
+def test_writer_initial_write_failure(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+
+    # Mocking write_frames to fail immediately when writing the triggering frame.
+    with patch("app.recording.wav_writer.WavWriter.write_frames", side_effect=RuntimeError("simulated initial write failure")):
+        res = engine.process_frame(b'\x01'*640, start_event)
+
+    assert engine.state == RecordingState.ERROR
+    assert engine._writer is None
+    assert res is None
+
+def test_writer_normal_write_failure(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+    engine.process_frame(b'\x01'*640, start_event)
+    assert engine.state == RecordingState.RECORDING
+
+    # Simulate a mid-stream write failure
+    with patch("app.recording.wav_writer.WavWriter.write_frames", side_effect=RuntimeError("simulated normal write failure")):
+        res = engine.process_frame(b'\x02'*640)
+
+    assert engine.state == RecordingState.ERROR
+    assert engine._writer is None
+    assert res is None
+
+def test_writer_close_failure(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
     engine.process_frame(b'\x01'*640, start_event)
 
-    # Engine should catch it and enter ERROR state, without throwing an uncaught exception up.
+    # Mock close() to fail during a graceful shutdown
+    with patch("app.recording.wav_writer.WavWriter.close", side_effect=RuntimeError("simulated close failure")):
+        res = engine.force_shutdown()
+
     assert engine.state == RecordingState.ERROR
+    assert engine._writer is None
+    assert res is None
+
+def test_writer_cleanup_failure_preserves_original_error(tmp_path):
+    cfg = get_base_cfg(tmp_path)
+    engine = RecordingEngine(cfg)
+    start_event = VADEvent(type=VADEventType.SPEECH_START, triggering_frame=b'\x01'*640)
+
+    # The writer.write_frames calls close() internally when catching an exception.
+    # We mock both to fail. The engine should catch the primary write exception cleanly without crashing.
+    with patch("app.recording.wav_writer.WavWriter.write_frames", side_effect=RuntimeError("primary write failure")):
+        with patch("app.recording.wav_writer.WavWriter.close", side_effect=RuntimeError("secondary cleanup close failure")):
+            res = engine.process_frame(b'\x01'*640, start_event)
+
+    assert engine.state == RecordingState.ERROR
+    assert engine._writer is None
+    assert res is None

@@ -36,7 +36,11 @@ If speech ends before the configured minimum duration, the engine continues cons
 Names deterministicly utilize native `datetime.now()` timestamping appended with microsecond tracking `<path>/betel_YYYYMMDD_HHMMSS_micros.wav` naturally guarding against collision logic.
 
 ## 11. Error Handling
-All IO errors forcefully trip the engine into the `ERROR` state and invoke hard-stops. It relies gracefully on outer supervisors natively avoiding silent writes or corrupt headers.
+All IO errors forcefully trip the engine into the `ERROR` state, attempting cleanup before exiting with `no successful result`. Verified states include:
+- `open` failure -> `ERROR`, clean writer reference, no result.
+- `initial write` failure -> `ERROR`, clean writer reference, no result.
+- `normal write` failure -> `ERROR`, clean writer reference, no result.
+- `close` failure -> `ERROR`, no result.
 
 ## 12. Shutdown Handling
 A cleanly invoked `engine.force_shutdown()` enables the service wrapper to invoke `.close()` gracefully against open WAVs on `SIGTERM`.
@@ -82,7 +86,7 @@ The following hardware integrations remain unverified and pending:
 - Recording architecture implemented
 - Frame ownership contract verified explicitly avoiding duplicates
 - Valid WAV implementations generated natively via standard `wave`
-- Pre-roll and sequential chronological boundaries rigidly respected natively
+- Pre-roll boundary truncation retains the most recent frames that fit within maximum-duration limits, natively preserving chronological order, and guaranteeing the triggering frame is preserved.
 - Triggering-frame correctly isolated and routed once
 - Post-roll timeouts respected
 - Post-roll correctly interrupted by speech overlaps without bugs
@@ -91,7 +95,7 @@ The following hardware integrations remain unverified and pending:
 - File naming/collision handling safely appending indexes
 - Shutdown handling safe against open descriptors
 - Error handling forces `ERROR` state and closes files rigidly
-- 43 offline automated tests pass
+- 47 offline automated tests pass
 - Build constraints upheld natively
 
 ### PHYSICAL / INTEGRATION VALIDATION PENDING
